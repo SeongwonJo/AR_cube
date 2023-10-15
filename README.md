@@ -1,6 +1,7 @@
 ## AR cube
 
 - python
+  - opencv-python
 - windows
 
 
