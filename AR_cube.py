@@ -1,15 +1,19 @@
 import cv2
 import numpy as np
 from itertools import product
-import time
+# import time
 import argparse
+import yaml
 
 
 def arguments_setting():
     arguments = argparse.ArgumentParser()
 
-    arguments.add_argument('-g', '--grid', nargs='+', type=int, required=True, default="4 4")
-    arguments.add_argument('-s', '--image_size', nargs='+', type=int, required=True, default="320 240")
+    arguments.add_argument('-g', '--grid', nargs='+', type=int) # 5 8
+    arguments.add_argument('-s', '--image_size', nargs='+', type=int) # 320 240
+    arguments.add_argument('-r', '--real_time_calibrate', default=False)
+    arguments.add_argument('-i', '--intrinsic_params', default="./intrinsic_parameter.yml")
+    arguments.add_argument('-c', '--calib_method', default="zhang")
 
     args = arguments.parse_args()
     return args
@@ -103,6 +107,7 @@ def main():
     args = arguments_setting()
     # i_size = (320, 240)
     # grid = (4, 4)
+    # print(args.grid)
 
     # principal point 는 이미지 중심점 사용
     cx, cy = args.image_size[1] / 2 - 1, args.image_size[1] / 2 - 1
@@ -137,15 +142,21 @@ def main():
             continue
 
         # focal length, camera matrix 구하기
-        # 굳이 매 프레임마다 구할 필요가 있을까 싶어서 30프레임마다 구하도록 조건줌
-        if count % 30 == 1:
-            f = get_focal_length(markers, args.grid, cx, cy)
+        if args.real_time_calibrate:
+            # 굳이 매 프레임마다 구할 필요가 있을까 싶어서 30프레임마다 구하도록 조건줌
+            if count % 30 == 1:
+                f = get_focal_length(markers, args.grid, cx, cy)
 
-            c_mtx = get_camera_matrix(f, cx, cy)
+                c_mtx = get_camera_matrix(f, cx, cy)
+        else:
+            with open(args.intrinsic_params) as f:
+                params = yaml.load(f, Loader=yaml.FullLoader)
+                f = params["focal_length"][args.calib_method]
 
-        dist_coeffs = np.zeros((4, 1))  # 카메라 왜곡 무시
+                c_mtx = get_camera_matrix(f, cx, cy)
 
         # estimate camera pose
+        dist_coeffs = np.zeros((4, 1))  # 카메라 왜곡 무시
         ret2, r_vec, t_vec = cv2.solvePnP(world_coord_arr, markers, c_mtx, dist_coeffs)
 
         # solvePnP 로 값이 안나오는 경우 예외처리
